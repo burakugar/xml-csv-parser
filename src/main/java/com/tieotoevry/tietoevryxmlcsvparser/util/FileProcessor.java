@@ -1,101 +1,56 @@
 package com.tieotoevry.tietoevryxmlcsvparser.util;
 
-import com.tieotoevry.tietoevryxmlcsvparser.formatter.Formatter;
-import com.tieotoevry.tietoevryxmlcsvparser.formatter.FormatterFactory;
-import com.tieotoevry.tietoevryxmlcsvparser.model.Sentence;
-import com.tieotoevry.tietoevryxmlcsvparser.parser.Parser;
-
+import com.tieotoevry.tietoevryxmlcsvparser.strategy.FileOutputStrategy;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Scanner;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.logging.Logger;
 
+/**
+ * Handles the processing of files by reading from a specified path,
+ * accumulating sentences, and utilizing a provided {@link FileOutputStrategy}
+ * to output the processed text.
+ */
 public class FileProcessor {
-    private static final String basePath = "src/main/java/com/tieotoevry/tietoevryxmlcsvparser/input/";
+    private static final String BASE_PATH = "src/main/java/com/tieotoevry/tietoevryxmlcsvparser/input/";
+    private static final Logger LOGGER = Logger.getLogger(FileProcessor.class.getName());
 
-/*    public static void processFile(String fileName) {
-        final String fullPath = Paths.get(basePath, fileName).toString();
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("Enter output format (XML or CSV):");
-
-
-        String format = scanner.nextLine().trim().toLowerCase();
-        Formatter formatter = FormatterFactory.createFormatter(format);
-
-        try (Stream<String> lines = Files.lines(Paths.get(fullPath))) {
-            StringBuilder contentBuilder = new StringBuilder();
-            lines.forEach(line -> contentBuilder.append(line).append(" ")); // Accumulate lines, considering a space as delimiter
-            String content = contentBuilder.toString();
-            List<Sentence> sentences = Parser.parseTextToSentences(content); // Ensure your parser can handle partial inputs if needed
-            System.out.println(formatter.format(sentences));
-        } catch (IOException e) {
-            System.err.println("Error reading file: " + e.getMessage());
-        }
-    }*/
-
-
-    public static void processFile(String fileName) {
-        final String fullPath = Paths.get(basePath, fileName).toString();
+    /**
+     * Processes the file specified by fileName using the given output strategy.
+     * Reads the file line by line, accumulates sentences, and passes them to
+     * the strategy for processing and outputting.
+     * 
+     * This method assumes that a sentence ends with a period ("."). If the accumulator
+     * contains text after reading the entire file, it processes this remaining text
+     * as a sentence as well.
+     *
+     * @param fileName The name of the file to be processed, relative to the {@link #BASE_PATH}.
+     * @param strategy The {@link FileOutputStrategy} to be used for processing and outputting
+     *                 the accumulated sentences.
+     * @throws IOException If an I/O error occurs reading from the file.
+     */
+    public static void processFile(String fileName, FileOutputStrategy strategy) {
+        LOGGER.info("Processing file: " + fileName);
+        final String fullPath = Paths.get(BASE_PATH, fileName).toString();
         try (BufferedReader reader = Files.newBufferedReader(Paths.get(fullPath))) {
             String line;
             StringBuilder sentenceAccumulator = new StringBuilder();
 
             while ((line = reader.readLine()) != null) {
                 sentenceAccumulator.append(line);
-                // Assuming sentences end with "." and processing when detected
                 if (line.contains(".")) {
-                    processAndOutput(sentenceAccumulator.toString(), "xml");
+                    strategy.processAndOutput(sentenceAccumulator.toString());
                     sentenceAccumulator = new StringBuilder(); // Reset for the next sentence
                 }
             }
-            // Process any remaining text that might not end with a period
+            // Process any remaining text as a sentence
             if (sentenceAccumulator.length() > 0) {
-                processAndOutput(sentenceAccumulator.toString(), "xml");
+                strategy.processAndOutput(sentenceAccumulator.toString());
             }
+            LOGGER.info("Finished processing file: " + fileName);
         } catch (IOException e) {
-            System.err.println("Error processing the file: " + e.getMessage());
+            LOGGER.severe("Error processing the file: " + e.getMessage());
         }
-
     }
-
-    private static void processAndOutput(String text, String format) {
-        // Split text into sentences, assuming "." as the end of a sentence
-        String[] sentences = text.split("\\.\\s*");
-        StringBuilder output = new StringBuilder();
-
-        if ("xml".equals(format)) {
-            output.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<text>");
-        } else if ("csv".equals(format)) {
-            output.append("Sentence, Words\n");
-        }
-
-        int sentenceNumber = 1;
-        for (String sentence : sentences) {
-            List<String> words = Arrays.stream(sentence.trim().split("\\s+"))
-                    .sorted(String.CASE_INSENSITIVE_ORDER)
-                    .collect(Collectors.toList());
-
-            if ("xml".equals(format)) {
-                output.append("\n  <sentence>");
-                words.forEach(word -> output.append("\n    <word>").append(word).append("</word>"));
-                output.append("\n  </sentence>");
-            } else if ("csv".equals(format)) {
-                output.append("Sentence ").append(sentenceNumber++).append(", ")
-                        .append(String.join(", ", words)).append("\n");
-            }
-        }
-
-        if ("xml".equals(format)) {
-            output.append("\n</text>");
-        }
-
-        System.out.println(output.toString());
-    }
-
-
 }
